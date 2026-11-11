@@ -37,8 +37,8 @@ jobs:
                     reviews(last: 10) {
                       nodes { state submittedAt }
                     }
-                    commits(last: 1) {
-                      nodes { commit { committedDate } }
+                    timelineItems(last: 1, itemTypes: [REVIEW_REQUESTED_EVENT]) {
+                      nodes { ... on ReviewRequestedEvent { createdAt } }
                     }
                     reviewRequests(first: 10) {
                       totalCount
@@ -59,16 +59,16 @@ jobs:
 
             // Process results
             // Waiting on the author: the latest decisive review requested
-            // changes and nothing was committed since. Pushing new commits puts
-            // the PR back in the digest.
+            // changes and no review was requested since. The author re-requests
+            // a review when the PR is ready again, which puts it back here.
             const waitingOnAuthor = pr => {
               const decisive = pr.reviews.nodes.filter(
                 r => r.state === "CHANGES_REQUESTED" || r.state === "APPROVED"
               );
               const latest = decisive[decisive.length - 1];
               if (!latest || latest.state !== "CHANGES_REQUESTED") return false;
-              const lastCommit = pr.commits.nodes[0]?.commit.committedDate;
-              return !lastCommit || new Date(latest.submittedAt) > new Date(lastCommit);
+              const lastRequest = pr.timelineItems.nodes[0]?.createdAt;
+              return !lastRequest || new Date(latest.submittedAt) > new Date(lastRequest);
             };
 
             const sections = [];
