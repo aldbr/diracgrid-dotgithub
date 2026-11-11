@@ -20,9 +20,9 @@ PRs are reviewed by project maintainers. Here's how the process works:
 
 1. Open your PR and mark it as **Ready for review** when it's complete.
 2. A reviewer will be assigned and will review your changes.
-3. If a reviewer requests changes, the PR is **automatically converted to a draft**. This signals that it's back in your hands.
-4. Address the feedback, push your updates, and mark the PR as **Ready for review** again.
-5. A **daily digest** of open PRs is posted to ensure nothing gets forgotten.
+3. If a reviewer requests changes, the PR is back in your hands: it leaves the daily digest until you push new commits.
+4. Address the feedback, push your updates, and re-request a review.
+5. A **daily digest** of open PRs awaiting review is posted to ensure nothing gets forgotten.
 
 ## More information
 

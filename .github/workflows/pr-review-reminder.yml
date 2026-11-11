@@ -35,7 +35,10 @@ jobs:
                     createdAt
                     author { login }
                     reviews(last: 10) {
-                      nodes { state }
+                      nodes { state submittedAt }
+                    }
+                    commits(last: 1) {
+                      nodes { commit { committedDate } }
                     }
                     reviewRequests(first: 10) {
                       totalCount
@@ -55,12 +58,27 @@ jobs:
             const result = await github.graphql(query);
 
             // Process results
+            // Waiting on the author: the latest decisive review requested
+            // changes and nothing was committed since. Pushing new commits puts
+            // the PR back in the digest.
+            const waitingOnAuthor = pr => {
+              const decisive = pr.reviews.nodes.filter(
+                r => r.state === "CHANGES_REQUESTED" || r.state === "APPROVED"
+              );
+              const latest = decisive[decisive.length - 1];
+              if (!latest || latest.state !== "CHANGES_REQUESTED") return false;
+              const lastCommit = pr.commits.nodes[0]?.commit.committedDate;
+              return !lastCommit || new Date(latest.submittedAt) > new Date(lastCommit);
+            };
+
             const sections = [];
             let totalPRs = 0;
 
             for (let i = 0; i < repos.length; i++) {
               const data = result[`repo${i}`];
-              const prs = data.pullRequests.nodes.filter(pr => !pr.isDraft);
+              const prs = data.pullRequests.nodes.filter(
+                pr => !pr.isDraft && !waitingOnAuthor(pr)
+              );
               if (prs.length === 0) continue;
               totalPRs += prs.length;
 
@@ -100,7 +118,7 @@ jobs:
             }
 
             if (totalPRs === 0) {
-              core.info("No non-draft PRs found across any repos. Skipping notification.");
+              core.info("No PRs awaiting review across any repos. Skipping notification.");
               return;
             }
 
