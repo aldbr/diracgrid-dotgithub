@@ -21,7 +21,7 @@ PRs are reviewed by project maintainers. Here's how the process works:
 1. Open your PR and mark it as **Ready for review** when it's complete.
 2. A reviewer will be assigned and will review your changes.
 3. If a reviewer requests changes, the PR is back in your hands: it leaves the daily digest.
-4. Address the feedback and push your updates. When the PR is ready again, **re-request a review** (the ↻ button next to the reviewer's name): this notifies the reviewer and puts the PR back in the digest.
+4. Address the feedback and push your updates. When the PR is ready again, **re-request a review** from the reviewer who asked for changes (the ↻ button next to their name): this notifies them and puts the PR back in the digest. If you cannot re-request a review, convert the PR to a draft and mark it **Ready for review** again.
 5. A **daily digest** of open PRs awaiting review is posted to ensure nothing gets forgotten.
 
 ## More information

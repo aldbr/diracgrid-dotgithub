@@ -34,13 +34,13 @@ jobs:
                     isDraft
                     createdAt
                     author { login }
-                    reviews(last: 10) {
-                      nodes { state submittedAt }
+                    latestOpinionatedReviews(first: 20, writersOnly: true) {
+                      nodes { state submittedAt author { login } }
                     }
-                    timelineItems(last: 1, itemTypes: [REVIEW_REQUESTED_EVENT]) {
-                      nodes { ... on ReviewRequestedEvent { createdAt } }
+                    timelineItems(last: 1, itemTypes: [READY_FOR_REVIEW_EVENT]) {
+                      nodes { ... on ReadyForReviewEvent { createdAt } }
                     }
-                    reviewRequests(first: 10) {
+                    reviewRequests(first: 20) {
                       totalCount
                       nodes {
                         requestedReviewer {
@@ -58,17 +58,27 @@ jobs:
             const result = await github.graphql(query);
 
             // Process results
-            // Waiting on the author: the latest decisive review requested
-            // changes and no review was requested since. The author re-requests
-            // a review when the PR is ready again, which puts it back here.
-            const waitingOnAuthor = pr => {
-              const decisive = pr.reviews.nodes.filter(
-                r => r.state === "CHANGES_REQUESTED" || r.state === "APPROVED"
-              );
-              const latest = decisive[decisive.length - 1];
-              if (!latest || latest.state !== "CHANGES_REQUESTED") return false;
-              const lastRequest = pr.timelineItems.nodes[0]?.createdAt;
-              return !lastRequest || new Date(latest.submittedAt) > new Date(lastRequest);
+            // Each reviewer's latest decisive review. A "changes requested"
+            // review stays open until its reviewer is asked again: the author
+            // re-requests a review from them (GitHub lists them in
+            // reviewRequests again until they review or the request is
+            // removed), or marks the PR as ready for review after it.
+            const requestedLogins = pr => new Set(
+              pr.reviewRequests.nodes.map(r => r.requestedReviewer?.login).filter(Boolean)
+            );
+            const reviewState = pr => {
+              const requested = requestedLogins(pr);
+              const readyAt = pr.timelineItems.nodes[0]?.createdAt;
+              let open = 0, reRequested = 0, approved = 0;
+              for (const r of pr.latestOpinionatedReviews.nodes) {
+                if (r.state === "APPROVED") approved++;
+                if (r.state !== "CHANGES_REQUESTED") continue;
+                const askedAgain =
+                  requested.has(r.author?.login) ||
+                  (readyAt && new Date(readyAt) > new Date(r.submittedAt));
+                if (askedAgain) reRequested++; else open++;
+              }
+              return { open, reRequested, approved };
             };
 
             const sections = [];
@@ -76,9 +86,9 @@ jobs:
 
             for (let i = 0; i < repos.length; i++) {
               const data = result[`repo${i}`];
-              const prs = data.pullRequests.nodes.filter(
-                pr => !pr.isDraft && !waitingOnAuthor(pr)
-              );
+              const prs = data.pullRequests.nodes
+                .map(pr => ({ ...pr, state: reviewState(pr) }))
+                .filter(pr => !pr.isDraft && pr.state.open === 0);
               if (prs.length === 0) continue;
               totalPRs += prs.length;
 
@@ -90,10 +100,9 @@ jobs:
 
                 // Determine review status
                 let status;
-                const reviewStates = pr.reviews.nodes.map(r => r.state);
-                if (reviewStates.includes("CHANGES_REQUESTED")) {
-                  status = ":warning: Changes requested";
-                } else if (reviewStates.includes("APPROVED")) {
+                if (pr.state.reRequested > 0) {
+                  status = ":repeat: Re-review requested";
+                } else if (pr.state.approved > 0) {
                   status = ":white_check_mark: Approved";
                 } else if (pr.reviewRequests.totalCount > 0) {
                   status = ":eyes: Review requested";
